@@ -40,15 +40,15 @@ To detect the users face we use a protobuf file (protocol buffer), this file con
 
 def faceScan(net, frame, conf_threshold=0.7):
     
-    frameOpencvDnn = frame.copy()
-    frameHeight = frameOpencvDnn.shape[0]
-    frameWidth = frameOpencvDnn.shape[1]
+    startFrame = frame.copy()
+    frameHeight = startFrame.shape[0]
+    frameWidth = startFrame.shape[1]
     blob = cv2.dnn.blobFromImage(
-        frameOpencvDnn, 1.0, (300, 300), [104, 117, 123], True, False)
+        startFrame, 1.0, (300, 300), [104, 117, 123], True, False)
 
     net.setInput(blob)
     userFound = net.forward()
-    faceBoxes = []
+    userBoxes = []
     
     # Creates a rectangular frame that is used to detect a users face
     # face dimensions 
@@ -59,10 +59,10 @@ def faceScan(net, frame, conf_threshold=0.7):
             y1 = int(userFound[0, 0, i, 4] * frameHeight)
             x2 = int(userFound[0, 0, i, 5] * frameWidth)
             y2 = int(userFound[0, 0, i, 6] * frameHeight)
-            faceBoxes.append([x1, y1, x2, y2])
-            cv2.rectangle(frameOpencvDnn, 
+            userBoxes.append([x1, y1, x2, y2])
+            cv2.rectangle(startFrame, 
                           (x1, y1), (x2, y2), (0, 255, 0), int(round(frameHeight / 150)), 8)
-    return frameOpencvDnn,faceBoxes
+    return startFrame,userBoxes
 
 
 
@@ -88,7 +88,7 @@ MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)
 ageList = ['(0-2)', '(4-6)', '(8-12)', '(15-20)', '(25-32)', '(38-43)', '(48-53)', '(60-100)']
 genderList = ['Male','Female']
 
-faceNet = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
+userNet = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
 ageNet = cv2.dnn.readNetFromCaffe(
     "model_detectors/age_deploy.prototxt",
     "model_detectors/age_net.caffemodel"
@@ -109,17 +109,17 @@ while True:
         cv2.waitKey()
         break
     
-    resultImg, faceBoxes = faceScan(faceNet, frame)
+    resultImg, userBoxes = faceScan(userNet, frame)
 
-    if not faceBoxes:
+    if not userBoxes:
         print("No face detected! Please look into the camera!!!")
         #time.sleep(3.0)
     
     # Scan for user's face, read the age and gender net caffe models and display the results near the facebox
-    for faceBox in faceBoxes:
-        face = frame[max(0, faceBox[1] - padding):
-                   min(faceBox[3] + padding, frame.shape[0] - 1), max(0, faceBox[0] - padding)
-                   :min(faceBox[2] + padding, frame.shape[1] - 1)]
+    for userBox in userBoxes:
+        face = frame[max(0, userBox[1] - padding):
+                   min(userBox[3] + padding, frame.shape[0] - 1), max(0, userBox[0] - padding)
+                   :min(userBox[2] + padding, frame.shape[1] - 1)]
 
         blob = cv2.dnn.blobFromImage(face, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB = False)
         genderNet.setInput(blob)
@@ -130,7 +130,7 @@ while True:
         agePreds = ageNet.forward()
         age = ageList[agePreds[0].argmax()]
         
-        cv2.putText(resultImg, f'{gender}, {age}', (faceBox[0], faceBox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2, cv2.LINE_AA)
+        cv2.putText(resultImg, f'{gender}, {age}', (userBox[0], userBox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2, cv2.LINE_AA)
 
     # show the frame around the user
     cv2.imshow("Detecting age and gender", resultImg)
